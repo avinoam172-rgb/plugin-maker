@@ -13,7 +13,8 @@
     <plugin.name>Plugin</plugin.name>
     <mc.version>1.21.11</mc.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>21</maven.compiler.release>
+    <java.release>21</java.release>
+    <maven.compiler.release>${java.release}</maven.compiler.release>
   </properties>
 
   <repositories>
@@ -40,7 +41,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>21</release>
+          <release>${java.release}</release>
           <proc>none</proc>
           <encoding>UTF-8</encoding>
         </configuration>
