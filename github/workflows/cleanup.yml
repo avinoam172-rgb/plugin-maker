@@ -1,0 +1,25 @@
+name: cleanup-old-builds
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete builds older than 2 days
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cutoff=$(date -u -d '2 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 500 --json tagName,createdAt \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | select(.tagName | startswith(\"b-\")) | .tagName" |
+          while read -r tag; do
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          done

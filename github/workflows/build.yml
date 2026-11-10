@@ -1,0 +1,71 @@
+name: build-plugin
+run-name: "build ${{ inputs.id }} ${{ inputs.who }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: job id
+        required: true
+      who:
+        description: anonymous requester tag
+        required: true
+      prompt:
+        description: plugin request
+        required: true
+      name:
+        description: plugin name (optional)
+        required: false
+        default: ''
+      version:
+        description: Minecraft version
+        required: false
+        default: '1.21.11'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Generate and compile
+        env:
+          JOB_ID: ${{ inputs.id }}
+          PROMPT: ${{ inputs.prompt }}
+          PLUGIN_NAME: ${{ inputs.name }}
+          MC_VERSION: ${{ inputs.version }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_CHAIN: ${{ vars.AI_CHAIN }}
+        run: node builder/build.mjs
+
+      - name: Publish result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_ID: ${{ inputs.id }}
+        run: |
+          if [[ ! "$JOB_ID" =~ ^[a-f0-9]{12}$ ]]; then echo "bad id"; exit 1; fi
+          mkdir -p out
+          if [ ! -f out/result.json ]; then
+            echo '{"ok":false,"error":"הבנייה נכשלה בגלל תקלה פנימית. נסו שוב."}' > out/result.json
+          fi
+          shopt -s nullglob
+          files=(out/*.jar out/*.zip)
+          gh release create "b-$JOB_ID" "${files[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "build $JOB_ID" \
+            --notes-file out/result.json
