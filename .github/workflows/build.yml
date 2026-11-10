@@ -1,5 +1,5 @@
 name: build-plugin
-run-name: "build ${{ inputs.id }} ${{ inputs.who }}"
+run-name: "build ${{ inputs.id }} ${{ inputs.who }} ${{ inputs.kind }} ${{ inputs.version }}"
 
 on:
   workflow_dispatch:
@@ -8,13 +8,17 @@ on:
         description: job id
         required: true
       who:
-        description: anonymous requester tag
+        description: requester user name
         required: true
+      kind:
+        description: plugin, forge or fabric
+        required: false
+        default: 'plugin'
       prompt:
-        description: plugin request
+        description: what to build
         required: true
       name:
-        description: plugin name (optional)
+        description: plugin or mod name (optional)
         required: false
         default: ''
       version:
@@ -28,21 +32,51 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
+      # Java 21 for Minecraft 1.21.x, Java 25 for 26.x and for the newer build tools.
+      # Java 8 and 17 are used by some Forge setup tools. The last one listed is the default.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
-          cache: maven
+          java-version: |
+            8
+            17
+            21
+            25
+
+      - name: Cache Maven libraries (plugins)
+        if: inputs.kind == 'plugin'
+        uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository
+          key: pm-maven-${{ inputs.version }}
+          restore-keys: pm-maven-
+
+      - name: Cache Gradle and Minecraft files (mods)
+        if: inputs.kind != 'plugin'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: pm-gradle-${{ inputs.kind }}-${{ inputs.version }}
+
+      - name: Install Gradle (Fabric mods)
+        if: inputs.kind == 'fabric'
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.9.0'
+          cache-disabled: true
 
       - name: Generate and compile
         env:
           JOB_ID: ${{ inputs.id }}
+          KIND: ${{ inputs.kind }}
           PROMPT: ${{ inputs.prompt }}
           PLUGIN_NAME: ${{ inputs.name }}
           MC_VERSION: ${{ inputs.version }}
